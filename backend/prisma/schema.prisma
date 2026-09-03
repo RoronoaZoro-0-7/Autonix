@@ -1,0 +1,286 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum TriggerType {
+  WEBHOOK
+  SCHEDULE
+  MANUAL
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum NodeStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum OAuthProvider {
+  GOOGLE
+  GITHUB
+}
+
+// ─── Users & Auth ─────────────────────────────────────────────
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  passwordHash      String?   // nullable because OAuth users may not have password
+  name              String
+  avatarUrl         String?
+  isEmailVerified   Boolean   @default(false)
+  emailVerifyToken  String?
+  passwordResetToken    String?
+  passwordResetExpiry   DateTime?
+  twoFactorSecret   String?   // TOTP secret for 2FA
+  twoFactorEnabled  Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  oauthAccounts     OAuthAccount[]
+  orgMembers        OrgMember[]
+  createdWorkflows  Workflow[]       @relation("CreatedBy")
+  refreshTokens     RefreshToken[]
+  approvals         ApprovalRequest[]
+  apiKeys           ApiKey[]
+  workflowVersions  WorkflowVersion[]
+}
+
+model OAuthAccount {
+  id           String        @id @default(uuid())
+  userId       String
+  provider     OAuthProvider
+  providerId   String        // ID from Google/GitHub
+  accessToken  String?
+  refreshToken String?
+  createdAt    DateTime      @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revoked   Boolean  @default(false)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Organizations ────────────────────────────────────────────
+
+model Organization {
+  id                  String      @id @default(uuid())
+  name                String
+  slug                String      @unique
+  plan                Plan        @default(FREE)
+  maxWorkflows        Int         @default(10)
+  maxExecutionsPerDay Int         @default(100)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  members             OrgMember[]
+  workflows           Workflow[]
+  apiKeys             ApiKey[]
+  executionStats      ExecutionStat[]
+}
+
+model OrgMember {
+  id       String       @id @default(uuid())
+  orgId    String
+  userId   String
+  role     Role
+  joinedAt DateTime     @default(now())
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+}
+
+model ApiKey {
+  id        String       @id @default(uuid())
+  orgId     String
+  userId    String
+  name      String
+  keyHash   String       @unique  // store hashed, never raw
+  lastUsed  DateTime?
+  expiresAt DateTime?
+  createdAt DateTime     @default(now())
+  revoked   Boolean      @default(false)
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Workflows ────────────────────────────────────────────────
+
+model Workflow {
+  id             String          @id @default(uuid())
+  orgId          String
+  createdById    String
+  name           String
+  description    String?
+  isActive       Boolean         @default(false)
+  triggerType    TriggerType
+  cronExpression String?
+  webhookSecret  String?
+  webhookUrl     String?         // generated unique URL per workflow
+  graph          Json            // { nodes: [], edges: [] }
+  version        Int             @default(1)
+  isDeleted      Boolean         @default(false)  // soft delete
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  org            Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy      User            @relation("CreatedBy", fields: [createdById], references: [id])
+  executions     Execution[]
+  versions       WorkflowVersion[]
+
+  @@index([orgId])
+  @@index([orgId, isActive])
+}
+
+model WorkflowVersion {
+  id         String   @id @default(uuid())
+  workflowId String
+  version    Int
+  graph      Json
+  savedAt    DateTime @default(now())
+  savedById  String?
+
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  savedBy    User?    @relation(fields: [savedById], references: [id])
+
+  @@unique([workflowId, version])
+}
+
+// ─── Executions ───────────────────────────────────────────────
+
+model Execution {
+  id           String          @id @default(uuid())
+  workflowId   String
+  triggeredBy  TriggerType
+  status       ExecutionStatus @default(PENDING)
+  startedAt    DateTime        @default(now())
+  completedAt  DateTime?
+  durationMs   Int?
+  triggerData  Json?
+  error        String?
+
+  workflow     Workflow        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  nodeLogs     NodeLog[]
+  approvals    ApprovalRequest[]
+
+  @@index([workflowId])
+  @@index([workflowId, status])
+  @@index([startedAt])
+}
+
+model NodeLog {
+  id          String     @id @default(uuid())
+  executionId String
+  nodeId      String
+  nodeType    String
+  nodeName    String?
+  status      NodeStatus
+  startedAt   DateTime   @default(now())
+  completedAt DateTime?
+  durationMs  Int?
+  input       Json?
+  output      Json?
+  error       String?
+  retryCount  Int        @default(0)
+
+  execution   Execution  @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@index([executionId])
+}
+
+// ─── Dead Letter Queue ────────────────────────────────────────
+
+model DeadLetterJob {
+  id          String    @id @default(uuid())
+  workflowId  String
+  executionId String?
+  payload     Json
+  error       String
+  failedAt    DateTime  @default(now())
+  retried     Boolean   @default(false)
+  retriedAt   DateTime?
+
+  @@index([workflowId])
+}
+
+// ─── Approval Requests ────────────────────────────────────────
+
+model ApprovalRequest {
+  id          String         @id @default(uuid())
+  executionId String
+  nodeId      String
+  assignedTo  String?
+  status      ApprovalStatus @default(PENDING)
+  createdAt   DateTime       @default(now())
+  resolvedAt  DateTime?
+  note        String?
+
+  execution   Execution      @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  assignee    User?          @relation(fields: [assignedTo], references: [id])
+}
+
+// ─── Analytics (Denormalized for fast reads) ──────────────────
+
+model ExecutionStat {
+  id              String       @id @default(uuid())
+  orgId           String
+  date            DateTime     // truncated to day
+  totalExecutions Int          @default(0)
+  successCount    Int          @default(0)
+  failureCount    Int          @default(0)
+  avgDurationMs   Int          @default(0)
+
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, date])
+  @@index([orgId, date])
+}

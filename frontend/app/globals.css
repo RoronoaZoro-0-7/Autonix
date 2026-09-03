@@ -1,0 +1,78 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'Fira Code', monospace;
+}
+
+:root {
+  color-scheme: dark;
+  /* Autonix Dark Color System */
+  --background: #0a0a0a;
+  --background-secondary: #111111;
+  --background-tertiary: #1a1a1a;
+  --border: #262626;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1a1;
+  --text-muted: #525252;
+  --accent-primary: #6366f1;
+  --accent-hover: #4f46e5;
+  --success: #22c55e;
+  --error: #ef4444;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  
+  --background-rgb: 10, 10, 10;
+  --accent-rgb: 99, 102, 241;
+}
+
+@layer base {
+  * {
+    @apply outline-offset-2;
+  }
+  
+  html {
+    @apply bg-[#0a0a0a];
+  }
+  
+  body {
+    @apply bg-[#0a0a0a] text-[#fafafa] font-sans;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+  
+  p, span {
+    @apply leading-relaxed;
+  }
+}
+
+/* Dot grid background pattern */
+@layer utilities {
+  .dot-grid {
+    background-image: 
+      radial-gradient(circle, #1a1a1a 1px, transparent 1px);
+    background-size: 20px 20px;
+    background-color: #0a0a0a;
+  }
+  
+  .card-dark {
+    @apply bg-[#111111] border border-[#262626] rounded-lg;
+  }
+  
+  .input-dark {
+    @apply bg-[#1a1a1a] border border-[#262626] text-[#fafafa] placeholder-[#525252] focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:ring-offset-0 rounded;
+  }
+  
+  .button-primary {
+    @apply bg-[#6366f1] hover:bg-[#4f46e5] text-white font-medium px-4 py-2 rounded transition-colors;
+  }
+  
+  .button-ghost {
+    @apply bg-transparent border border-[#262626] text-[#fafafa] hover:bg-[#1a1a1a] font-medium px-4 py-2 rounded transition-colors;
+  }
+}

@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# TypeScript build output
+dist/
+build/
+*.tsbuildinfo
+
+# Prisma generated client (regenerated via prisma generate)
+# Keep: schema.prisma, migrations/
+node_modules/.prisma/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Winston log files
+combined.log
+error.log
+
+# Uploads / temp files (S3 / multer staging)
+uploads/
+tmp/
+
+# Coverage
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
