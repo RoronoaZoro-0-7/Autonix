@@ -36,3 +36,14 @@ export const getCachedWorkflow = async (orgId: string, workflowId: string) => {
 export const invalidateWorkflowCache = async (orgId: string, workflowId: string) => {
     await redis.del(`workflow:${orgId}:${workflowId}`);
 };
+
+export const resolveTemplate = (template: string, input: any): string => {
+    return template.replace(/\{\{([^}]+)\}\}/g, (match, path) => {
+        const keys = path.trim().split('.');
+        let value = { input, ...input };
+        for (const key of keys) {
+            value = value?.[key];
+        }
+        return value !== undefined ? String(value) : match;
+    });
+};

@@ -61,7 +61,9 @@ export const login = async (email: string, password: string) => {
     const isMatch = await bcrypt.compare(password, user.passwordHash!);
     if (!isMatch) throw new AppError('Invalid credentials', 401);
 
-    if (!user.isEmailVerified) throw new AppError('Please verify your email first', 403);
+    if (!user.isEmailVerified){
+        throw new AppError('Please verify your email first', 403);
+    }
 
     const accessToken = generateAccessToken(user.id, user.email);
     const refreshToken = generateRefreshToken(user.id);

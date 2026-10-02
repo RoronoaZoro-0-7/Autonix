@@ -15,6 +15,12 @@ import {
     restoreVersionController
 } from '../controllers/workflowController';
 
+import {
+  triggerManualController,
+  getExecutionsController,
+  getExecutionController
+} from '../controllers/executionController';
+
 // ─── Schemas ──────────────────────────────────────────────────
 
 const workflowParamsSchema = z.object({
@@ -120,6 +126,27 @@ router.post(
     checkOrgRole([Role.OWNER, Role.ADMIN]),
     validate(restoreVersionSchema),
     restoreVersionController
+);
+
+// manual trigger -- OWNER, ADMIN, EDITOR
+router.post(
+  '/:workflowId/run',
+  validate(workflowParamsSchema, 'params'),
+  checkOrgRole([Role.OWNER, Role.ADMIN, Role.EDITOR]),
+  triggerManualController
+);
+
+// get all executions for a workflow -- any member
+router.get(
+  '/:workflowId/executions',
+  validate(workflowParamsSchema, 'params'),
+  getExecutionsController
+);
+
+// get single execution with node logs -- any member
+router.get(
+  '/:workflowId/executions/:executionId',
+  getExecutionController
 );
 
 export default router;
